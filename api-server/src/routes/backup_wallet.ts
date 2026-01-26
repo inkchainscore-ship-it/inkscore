@@ -577,7 +577,7 @@ router.get('/:address/bridge', async (req: Request, res: Response) => {
 
                 for (const log of logs) {
                     const topic0 = log.topics?.[0]?.toLowerCase();
-                    
+
                     if (topic0 === SOCKET_BRIDGE_SIGNATURE.toLowerCase()) {
                         hasSocketBridge = true;
                         // Parse the SocketBridge event to get accurate amount and token
@@ -611,18 +611,18 @@ router.get('/:address/bridge', async (req: Request, res: Response) => {
                 if (socketBridgeData) {
                     const { amount, token } = socketBridgeData;
                     const tokenLower = token.toLowerCase();
-                    
+
                     // Native ETH address used in Bungee events
                     const NATIVE_ETH = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
                     const WETH = '0x4200000000000000000000000000000000000006';
-                    
+
                     // Determine token decimals and calculate USD value
                     if (tokenLower === NATIVE_ETH || tokenLower === WETH) {
                         // ETH/WETH - 18 decimals
                         txEthValue = Number(amount) / 1e18;
                         txUsdValue = txEthValue * txEthPrice;
-                    } else if (tokenLower === '0x0200c29006150606b650577bbe7b6248f58470c1' || 
-                               tokenLower === '0x2d270e6886d130d724215a266106e6832161eaed') {
+                    } else if (tokenLower === '0x0200c29006150606b650577bbe7b6248f58470c1' ||
+                        tokenLower === '0x2d270e6886d130d724215a266106e6832161eaed') {
                         // USDT/USDC - 6 decimals, USD pegged
                         txUsdValue = Number(amount) / 1e6;
                     } else if (tokenLower === '0xe343167631d89b6ffc58b88d6b7fb0228795491d') {
@@ -633,7 +633,7 @@ router.get('/:address/bridge', async (req: Request, res: Response) => {
                         txEthValue = Number(amount) / 1e18;
                         txUsdValue = txEthValue * txEthPrice;
                     }
-                    
+
                     console.log(`[Bungee Gateway] TX ${row.tx_hash}: Bridge detected - token=${token}, amount=${amount}, usdValue=${txUsdValue}`);
                 } else {
                     // Fallback: Use pre-calculated values if SocketBridge event couldn't be parsed
@@ -657,7 +657,7 @@ router.get('/:address/bridge', async (req: Request, res: Response) => {
                     // Gateway transactions are bridge OUT (user initiating bridge from Ink)
                     platformData['Bungee'].bridgedOutUsd = (platformData['Bungee'].bridgedOutUsd || 0) + txUsdValue;
                     platformData['Bungee'].bridgedOutCount = (platformData['Bungee'].bridgedOutCount || 0) + 1;
-                    
+
                     totalEth += txEthValue;
                     totalTxCount += 1;
                     bridgedOutUsd += txUsdValue;
@@ -748,19 +748,135 @@ const SWAP_METHOD_IDS = [
     '0x5c11d795', '0x3593564c', '0xaad348a2',
 ];
 
-// Known stablecoin addresses (lowercase) - decimals for each
-const STABLECOIN_ADDRESSES: Record<string, number> = {
-    '0x0200c29006150606b650577bbe7b6248f58470c1': 6,
-    '0xe343167631d89b6ffc58b88d6b7fb0228795491d': 6,
-    '0xdac17f958d2ee523a2206206994597c13d831ec7': 6,
-    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 6,
+// Known token addresses with their decimals and USD peg status
+const SWAP_TOKEN_INFO: Record<string, { decimals: number; usdPegged?: boolean; symbol?: string; priceInEth?: boolean; fixedUsdPrice?: number }> = {
+    // Stablecoins (USD pegged)
+    '0x0200c29006150606b650577bbe7b6248f58470c1': { decimals: 6, usdPegged: true, symbol: 'USDT0' },
+    '0xe343167631d89b6ffc58b88d6b7fb0228795491d': { decimals: 18, usdPegged: true, symbol: 'USDG' },
+    '0x2d270e6886d130d724215a266106e6832161eaed': { decimals: 6, usdPegged: true, symbol: 'USDC' },
+    '0xfc421ad3c883bf9e7c4f42de845c4e4405799e73': { decimals: 18, usdPegged: true, symbol: 'GHO' },
+    '0xdac17f958d2ee523a2206206994597c13d831ec7': { decimals: 6, usdPegged: true, symbol: 'USDT' },
+    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': { decimals: 6, usdPegged: true, symbol: 'USDC' },
+    '0xeb466342c4d449bc9f53a865d5cb90586f405215': { decimals: 6, usdPegged: true, symbol: 'axlUSDC' },
+    // WETH/ETH (18 decimals, priced in ETH)
+    '0x4200000000000000000000000000000000000006': { decimals: 18, symbol: 'WETH', priceInEth: true },
+    '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2': { decimals: 18, symbol: 'WETH', priceInEth: true },
+    // Known problematic tokens (add as discovered)
+    '0x20c69c12abf2b6f8d8ca33604dd25c700c7e70a5': { decimals: 18, symbol: 'UNKNOWN', fixedUsdPrice: 0.0015 }, // Fixed at $0.0015 per unit
 };
 
-// WETH/ETH addresses (18 decimals)
-const WETH_ADDRESSES = new Set([
-    '0x4200000000000000000000000000000000000006',
-    '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
-]);
+// Cache for dynamically fetched token decimals
+const tokenDecimalsCache: Record<string, number> = {};
+
+// Cache for token prices (USD per token)
+const tokenPriceCache: Record<string, { price: number; timestamp: number }> = {};
+const PRICE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// USDC address on Ink chain (used as quote target)
+const USDC_ADDRESS = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
+const USDC_DECIMALS = 6;
+
+/**
+ * Fetch token decimals from RPC
+ */
+async function fetchTokenDecimals(tokenAddress: string): Promise<number> {
+    // Check cache first
+    if (tokenDecimalsCache[tokenAddress]) {
+        return tokenDecimalsCache[tokenAddress];
+    }
+
+    try {
+        const response = await fetch('https://rpc-qnd.inkonchain.com', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'eth_call',
+                params: [
+                    {
+                        to: tokenAddress,
+                        data: '0x313ce567' // decimals() function selector
+                    },
+                    'latest'
+                ],
+                id: 1
+            })
+        });
+
+        const result: any = await response.json();
+        if (result && result.result) {
+            const decimals = parseInt(result.result, 16);
+            tokenDecimalsCache[tokenAddress] = decimals;
+            console.log(`[Token Decimals] Fetched ${tokenAddress}: ${decimals} decimals`);
+            return decimals;
+        }
+    } catch (error) {
+        console.error(`[Token Decimals] Error fetching for ${tokenAddress}:`, error);
+    }
+
+    // Fallback to 18 decimals
+    return 18;
+}
+
+/**
+ * Fetch token price in USD using InkySwap quote API
+ * Returns USD price per 1 token unit (with proper decimals)
+ */
+async function fetchTokenPriceUSD(tokenAddress: string, decimals: number): Promise<number> {
+    const cacheKey = tokenAddress.toLowerCase();
+
+    // Check cache first
+    const cached = tokenPriceCache[cacheKey];
+    if (cached && Date.now() - cached.timestamp < PRICE_CACHE_TTL) {
+        return cached.price;
+    }
+
+    try {
+        // Quote 1 token (in its smallest unit) to USDC
+        const oneToken = Math.pow(10, decimals).toString();
+
+        const url = `https://inkyswap.com/api/quote?tokenIn=${tokenAddress}&tokenOut=${USDC_ADDRESS}&amount=${oneToken}`;
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+            // Don't throw on 500 - just log and use fallback (likely no liquidity)
+            console.log(`[Token Price] ${tokenAddress}: InkySwap API returned ${response.status} (likely no liquidity), using $1 fallback`);
+
+            // Cache the fallback to avoid repeated failed API calls
+            tokenPriceCache[cacheKey] = {
+                price: 1.0,
+                timestamp: Date.now()
+            };
+            return 1.0;
+        }
+
+        const data: any = await response.json();
+
+        if (data && data.amountOut) {
+            // amountOut is in USDC (6 decimals)
+            const usdcAmount = Number(data.amountOut) / Math.pow(10, USDC_DECIMALS);
+
+            // Cache the result
+            tokenPriceCache[cacheKey] = {
+                price: usdcAmount,
+                timestamp: Date.now()
+            };
+
+            console.log(`[Token Price] ${tokenAddress}: $${usdcAmount} per token (via InkySwap)`);
+            return usdcAmount;
+        }
+    } catch (error) {
+        console.error(`[Token Price] Error fetching price for ${tokenAddress}:`, error);
+    }
+
+    // Fallback: assume $1 per token
+    console.log(`[Token Price] ${tokenAddress}: Fallback to $1 per token`);
+    return 1.0;
+}
 
 interface SwapLog {
     event?: string;
@@ -769,64 +885,147 @@ interface SwapLog {
     data?: string;
 }
 
-function parseSwapVolumeFromLogs(logs: SwapLog[], ethPriceUsd: number = 3500): number {
+/**
+ * Parse swap volume from transaction logs
+ * Looks for the first Transfer event to get the token amount being swapped
+ */
+async function parseSwapVolumeFromLogs(logs: SwapLog[], ethPriceUsd: number = 3500, txHash?: string, platform?: string): Promise<number> {
     if (!logs || !Array.isArray(logs)) return 0;
 
-    let totalUsd = 0;
+    let maxUsdValue = 0;
+    const isInkySwap = platform === 'InkySwap';
 
-    for (const log of logs) {
+    if (isInkySwap) {
+        console.log(`\n========== [InkySwap] TX ${txHash} - DETAILED LOG PARSING ==========`);
+        console.log(`Total logs: ${logs.length}`);
+        console.log(`ETH Price: ${ethPriceUsd}`);
+    }
+
+    // Look for Transfer events to get the swap amount
+    for (let i = 0; i < logs.length; i++) {
+        const log = logs[i];
+
         if (log.event?.startsWith('Transfer(') && log.topics?.length && log.topics.length >= 3) {
             const tokenAddress = log.address?.id?.toLowerCase();
             const data = log.data;
 
             if (!tokenAddress || !data) continue;
 
-            const decimals = STABLECOIN_ADDRESSES[tokenAddress];
-            if (decimals !== undefined) {
-                try {
-                    const amountHex = data.slice(0, 66);
-                    const amount = BigInt(amountHex);
-                    const usdValue = Number(amount) / Math.pow(10, decimals);
-                    totalUsd = Math.max(totalUsd, usdValue);
-                } catch {
-                    // Skip
+            let tokenInfo = SWAP_TOKEN_INFO[tokenAddress];
+
+            // If token not in our list, fetch decimals dynamically
+            if (!tokenInfo) {
+                const decimals = await fetchTokenDecimals(tokenAddress);
+
+                // Fetch real-time price from InkySwap
+                const pricePerToken = await fetchTokenPriceUSD(tokenAddress, decimals);
+
+                tokenInfo = {
+                    decimals,
+                    usdPegged: false,
+                    symbol: 'UNKNOWN'
+                };
+
+                if (isInkySwap) {
+                    console.log(`\n--- Transfer Event #${i} ---`);
+                    console.log(`Token Address: ${tokenAddress}`);
+                    console.log(`⚠️  UNKNOWN TOKEN - Fetched decimals: ${decimals}`);
+                    console.log(`⚠️  Fetched price from InkySwap: $${pricePerToken} per token`);
                 }
+
+                // Store the price for this calculation
+                (tokenInfo as any).fetchedPrice = pricePerToken;
             }
 
-            if (WETH_ADDRESSES.has(tokenAddress)) {
-                try {
-                    const amountHex = data.slice(0, 66);
-                    const amount = BigInt(amountHex);
-                    const ethValue = Number(amount) / 1e18;
-                    const usdValue = ethValue * ethPriceUsd;
-                    totalUsd = Math.max(totalUsd, usdValue);
-                } catch {
-                    // Skip
-                }
-            }
-        }
+            try {
+                // Parse the amount from the data field
+                const amountHex = data.startsWith('0x') ? data.slice(2, 66) : data.slice(0, 64);
+                const amount = BigInt('0x' + amountHex);
 
-        if (log.event?.startsWith('Swap(') && log.data) {
-            const poolAlias = log.address?.alias?.toLowerCase() || '';
-            if (poolAlias.includes('usd') || poolAlias.includes('usdt') || poolAlias.includes('usdc')) {
-                try {
-                    const cleanData = log.data.replace('0x', '');
-                    if (cleanData.length >= 256) {
-                        const amount0In = BigInt('0x' + cleanData.slice(0, 64));
-                        const amount1Out = BigInt('0x' + cleanData.slice(192, 256));
-                        const stableAmount = amount0In > 0 ? Number(amount0In) / 1e6 : Number(amount1Out) / 1e6;
-                        if (stableAmount > 0 && stableAmount < 1e12) {
-                            totalUsd = Math.max(totalUsd, stableAmount);
+                if (isInkySwap && tokenInfo) {
+                    console.log(`\n--- Transfer Event #${i} ---`);
+                    console.log(`Token Address: ${tokenAddress}`);
+                    console.log(`Token Info: ${JSON.stringify(tokenInfo)}`);
+                    console.log(`Raw Amount (hex): ${amountHex}`);
+                    console.log(`Raw Amount (bigint): ${amount.toString()}`);
+                }
+
+                if (tokenInfo) {
+                    // Known token - use its decimals
+                    const tokenAmount = Number(amount) / Math.pow(10, tokenInfo.decimals);
+
+                    if (isInkySwap) {
+                        console.log(`Token Amount (with ${tokenInfo.decimals} decimals): ${tokenAmount}`);
+                    }
+
+                    if (tokenInfo.usdPegged) {
+                        // USD-pegged stablecoin - direct USD value ($1 per unit)
+                        const usdValue = tokenAmount;
+                        maxUsdValue = Math.max(maxUsdValue, usdValue);
+
+                        if (isInkySwap) {
+                            console.log(`USD Value (${tokenAmount} × $1): ${usdValue}`);
+                            console.log(`Max USD Value so far: ${maxUsdValue}`);
+                        } else {
+                            console.log(`[Swap] Found ${tokenInfo.symbol} transfer: ${tokenAmount} USD (${tokenAddress})`);
+                        }
+                    } else if (tokenInfo.fixedUsdPrice !== undefined) {
+                        // Token with fixed USD price
+                        const usdValue = tokenAmount * tokenInfo.fixedUsdPrice;
+                        maxUsdValue = Math.max(maxUsdValue, usdValue);
+
+                        if (isInkySwap) {
+                            console.log(`USD Value (${tokenAmount} × $${tokenInfo.fixedUsdPrice}): ${usdValue}`);
+                            console.log(`Max USD Value so far: ${maxUsdValue}`);
+                        } else {
+                            console.log(`[Swap] Found ${tokenInfo.symbol} transfer: ${tokenAmount} × $${tokenInfo.fixedUsdPrice} = ${usdValue} USD (${tokenAddress})`);
+                        }
+                    } else if (tokenInfo.priceInEth) {
+                        // ETH-based token - convert using ETH price
+                        const usdValue = tokenAmount * ethPriceUsd;
+                        maxUsdValue = Math.max(maxUsdValue, usdValue);
+
+                        if (isInkySwap) {
+                            console.log(`USD Value (${tokenAmount} × ${ethPriceUsd}): ${usdValue}`);
+                            console.log(`Max USD Value so far: ${maxUsdValue}`);
+                        } else {
+                            console.log(`[Swap] Found ${tokenInfo.symbol} transfer: ${tokenAmount} ETH = ${usdValue} USD (${tokenAddress})`);
+                        }
+                    } else if ((tokenInfo as any).fetchedPrice !== undefined) {
+                        // Unknown token with fetched price from InkySwap API
+                        const pricePerToken = (tokenInfo as any).fetchedPrice;
+                        const usdValue = tokenAmount * pricePerToken;
+                        maxUsdValue = Math.max(maxUsdValue, usdValue);
+
+                        if (isInkySwap) {
+                            console.log(`USD Value (${tokenAmount} × $${pricePerToken}): ${usdValue}`);
+                            console.log(`Max USD Value so far: ${maxUsdValue}`);
+                        } else {
+                            console.log(`[Swap] Found ${tokenInfo.symbol} transfer: ${tokenAmount} × $${pricePerToken} = ${usdValue} USD (${tokenAddress})`);
+                        }
+                    } else {
+                        // Unknown pricing - assume $1 per unit (fallback)
+                        const usdValue = tokenAmount;
+                        maxUsdValue = Math.max(maxUsdValue, usdValue);
+
+                        if (isInkySwap) {
+                            console.log(`USD Value (${tokenAmount} × $1 assumed): ${usdValue}`);
+                            console.log(`Max USD Value so far: ${maxUsdValue}`);
                         }
                     }
-                } catch {
-                    // Skip
                 }
+            } catch (error) {
+                console.error(`[Swap] Error parsing transfer for token ${tokenAddress}:`, error);
+                continue;
             }
         }
     }
 
-    return totalUsd;
+    if (isInkySwap) {
+        console.log(`\n========== [InkySwap] FINAL USD VALUE: ${maxUsdValue} ==========\n`);
+    }
+
+    return maxUsdValue;
 }
 
 // GET /api/wallet/:address/swap
@@ -870,32 +1069,65 @@ router.get('/:address/swap', async (req: Request, res: Response) => {
 
         for (const row of result.rows) {
             const contractAddr = row.contract_address.toLowerCase();
+            const txHash = row.tx_hash;
+            const platformName = SWAP_CONTRACTS[contractAddr] || 'Unknown DEX';
+            const isInkySwap = platformName === 'InkySwap';
 
             let usdValue = parseFloat(row.total_usd_volume || '0');
 
-            if (usdValue === 0) {
-                usdValue = parseFloat(row.tokens_in_usd_total || '0') + parseFloat(row.tokens_out_usd_total || '0');
+            if (isInkySwap && usdValue > 0) {
+                console.log(`\n[InkySwap ${txHash}] Pre-calculated total_usd_volume: ${usdValue}`);
             }
 
+            if (usdValue === 0) {
+                usdValue = parseFloat(row.tokens_in_usd_total || '0') + parseFloat(row.tokens_out_usd_total || '0');
+
+                if (isInkySwap && usdValue > 0) {
+                    console.log(`[InkySwap ${txHash}] tokens_in + tokens_out: ${usdValue}`);
+                }
+            }
+
+            // Primary method: Parse logs to get the first Transfer event
             if (usdValue === 0 && row.logs) {
                 try {
                     const logs = typeof row.logs === 'string' ? JSON.parse(row.logs) : row.logs;
                     const ethPrice = parseFloat(row.eth_price_usd || '3500');
-                    usdValue = parseSwapVolumeFromLogs(logs, ethPrice);
-                } catch {
-                    // Skip
+                    usdValue = await parseSwapVolumeFromLogs(logs, ethPrice, txHash, platformName);
+
+                    if (usdValue > 0) {
+                        if (isInkySwap) {
+                            console.log(`[InkySwap ${txHash}] ✅ Parsed from logs: ${usdValue} USD`);
+                        } else {
+                            console.log(`[Swap ${txHash}] Parsed from logs: ${usdValue} USD`);
+                        }
+                    }
+                } catch (error) {
+                    console.error(`[Swap ${txHash}] Error parsing logs:`, error);
                 }
             }
 
+            // Fallback: Use ETH value if no token transfers found
             if (usdValue === 0) {
                 const ethValue = parseFloat(row.eth_value_decimal || '0');
                 const ethPrice = parseFloat(row.eth_price_usd || '3500');
                 if (ethValue > 0) {
                     usdValue = ethValue * ethPrice;
+
+                    if (isInkySwap) {
+                        console.log(`[InkySwap ${txHash}] Using eth_value_decimal: ${ethValue} ETH = ${usdValue} USD`);
+                    } else {
+                        console.log(`[Swap ${txHash}] Using eth_value_decimal: ${ethValue} ETH = ${usdValue} USD`);
+                    }
                 } else if (row.value) {
                     const rawValue = BigInt(row.value || '0');
                     const ethFromRaw = Number(rawValue) / 1e18;
                     usdValue = ethFromRaw * ethPrice;
+
+                    if (isInkySwap) {
+                        console.log(`[InkySwap ${txHash}] Using raw value: ${ethFromRaw} ETH = ${usdValue} USD`);
+                    } else {
+                        console.log(`[Swap ${txHash}] Using raw value: ${ethFromRaw} ETH = ${usdValue} USD`);
+                    }
                 }
             }
 
@@ -939,6 +1171,16 @@ router.get('/:address/swap', async (req: Request, res: Response) => {
         }
 
         byPlatform.sort((a, b) => b.usdValue - a.usdValue);
+
+        // Log InkySwap summary
+        const inkySwapPlatform = byPlatform.find(p => p.platform === 'InkySwap');
+        if (inkySwapPlatform) {
+            console.log(`\n========== [InkySwap] FINAL SUMMARY ==========`);
+            console.log(`Total USD Value: $${inkySwapPlatform.usdValue.toLocaleString()}`);
+            console.log(`Total Transactions: ${inkySwapPlatform.txCount}`);
+            console.log(`Average per TX: $${(inkySwapPlatform.usdValue / inkySwapPlatform.txCount).toLocaleString()}`);
+            console.log(`==============================================\n`);
+        }
 
         const response: SwapVolumeResponse = {
             totalEth,
