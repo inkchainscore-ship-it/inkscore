@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserAnalyticsResponse } from '@/lib/types/analytics';
+import { getProxiedImageUrl } from '@/lib/utils/imageProxy';
 
 interface AnalyticsCardsProps {
   walletAddress: string;
@@ -23,7 +24,7 @@ interface BridgeVolumeResponse {
 
 // Platform logos/icons
 const BRIDGE_PLATFORM_LOGOS: Record<string, string> = {
-  'Native Bridge (USDT0)': 'https://pbs.twimg.com/profile_images/1879546764971188224/SQISVYwX_400x400.jpg',
+  'Native Bridge (USDT0)': 'https://pbs.twimg.com/profile_images/2013321478834409473/eD-oLIDE_400x400.jpg',
   'Ink Official': 'https://inkonchain.com/favicon.ico',
   'Relay': 'https://relay.link/favicon.ico',
   'Bungee': 'https://www.bungee.exchange/favicon.ico',
@@ -256,7 +257,7 @@ export const AnalyticsCards: React.FC<AnalyticsCardsProps> = ({ walletAddress })
                     <span className="text-slate-400 flex items-center gap-2">
                       {logoUrl && (
                         <img
-                          src={logoUrl}
+                          src={getProxiedImageUrl(logoUrl)}
                           alt={displayName}
                           className="w-4 h-4 rounded"
                           onError={(e) => {
@@ -307,7 +308,7 @@ export const AnalyticsCards: React.FC<AnalyticsCardsProps> = ({ walletAddress })
               <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                 {metricLogo ? (
                   <img
-                    src={metricLogo}
+                    src={getProxiedImageUrl(metricLogo)}
                     alt={metric.name}
                     className="w-6 h-6 rounded"
                     onError={(e) => {

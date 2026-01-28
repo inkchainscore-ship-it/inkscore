@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ContractWithPlatforms, Platform } from '@/lib/types/platforms';
+import { getProxiedImageUrl } from '@/lib/utils/imageProxy';
 
 interface ContractModalProps {
   contract?: ContractWithPlatforms;
@@ -110,7 +111,7 @@ export default function ContractModal({ contract, platforms, onSave, onClose, sa
                   />
                   <div className="flex items-center gap-2">
                     {platform.logo_url && (
-                      <img src={platform.logo_url} alt="" className="w-5 h-5 rounded" />
+                      <img src={getProxiedImageUrl(platform.logo_url)} alt="" className="w-5 h-5 rounded" />
                     )}
                     <span>{platform.name}</span>
                   </div>

@@ -1208,25 +1208,44 @@ router.get('/:address/swap', async (req: Request, res: Response) => {
 
     const platformAggregates = new Map<string, { ethValue: number; usdValue: number; txCount: number }>();
 
+    console.log(`\n[SWAP VOLUME DEBUG] Processing ${result.rows.length} transactions for wallet ${walletAddress}`);
+
     for (const row of result.rows) {
       const contractAddr = row.contract_address.toLowerCase();
+      const txHash = row.tx_hash;
+      const platformName = SWAP_CONTRACTS[contractAddr] || 'Unknown DEX';
 
       let usdValue = parseFloat(row.total_usd_volume || '0');
+      let dataSource = 'total_usd_volume';
 
       if (usdValue === 0) {
         const ethValue = parseFloat(row.eth_value_decimal || '0');
         const ethPrice = parseFloat(row.eth_price_usd || '3500');
         if (ethValue > 0) {
           usdValue = ethValue * ethPrice;
+          dataSource = 'eth_value_decimal * eth_price';
+          console.log(`[${platformName}] tx: ${txHash} | USD: $${usdValue.toFixed(2)} | Source: ${dataSource} (ETH: ${ethValue}, Price: $${ethPrice})`);
         } else if (row.value) {
           const rawValue = BigInt(row.value || '0');
           const ethFromRaw = Number(rawValue) / 1e18;
           usdValue = ethFromRaw * ethPrice;
+          dataSource = 'raw_value * eth_price';
+          console.log(`[${platformName}] tx: ${txHash} | USD: $${usdValue.toFixed(2)} | Source: ${dataSource} (Raw ETH: ${ethFromRaw}, Price: $${ethPrice})`);
         }
+      } else {
+        console.log(`[${platformName}] tx: ${txHash} | USD: $${usdValue.toFixed(2)} | Source: ${dataSource}`);
       }
 
       // Sanity check
-      if (usdValue > 1_000_000_000) continue;
+      if (usdValue > 1_000_000_000) {
+        console.warn(`[${platformName}] ⚠️  SKIPPED tx: ${txHash} | USD: $${usdValue.toFixed(2)} | Reason: Exceeds $1B sanity check`);
+        continue;
+      }
+
+      // Log suspiciously high values
+      if (usdValue > 100_000) {
+        console.warn(`[${platformName}] ⚠️  HIGH VALUE tx: ${txHash} | USD: $${usdValue.toFixed(2)} | Source: ${dataSource}`);
+      }
 
       const existing = platformAggregates.get(contractAddr) || { ethValue: 0, usdValue: 0, txCount: 0 };
       existing.usdValue += usdValue;
@@ -1239,12 +1258,16 @@ router.get('/:address/swap', async (req: Request, res: Response) => {
     let totalTxCount = 0;
     const byPlatform: SwapVolumeResponse['byPlatform'] = [];
 
+    console.log(`\n[SWAP VOLUME DEBUG] Aggregating results by platform:`);
+
     for (const [contractAddr, aggregate] of platformAggregates) {
       totalEth += aggregate.ethValue;
       totalUsd += aggregate.usdValue;
       totalTxCount += aggregate.txCount;
 
       const platformName = SWAP_CONTRACTS[contractAddr] || 'Unknown DEX';
+
+      console.log(`[${platformName}] Total USD: $${aggregate.usdValue.toFixed(2)} | Tx Count: ${aggregate.txCount}`);
 
       byPlatform.push({
         platform: platformName,
@@ -1254,6 +1277,11 @@ router.get('/:address/swap', async (req: Request, res: Response) => {
         txCount: aggregate.txCount,
       });
     }
+
+    console.log(`\n[SWAP VOLUME DEBUG] FINAL TOTALS for ${walletAddress}:`);
+    console.log(`  Total USD: $${totalUsd.toFixed(2)}`);
+    console.log(`  Total Tx Count: ${totalTxCount}`);
+    console.log(`  Platforms: ${byPlatform.length}\n`);
 
     byPlatform.sort((a, b) => b.usdValue - a.usdValue);
 

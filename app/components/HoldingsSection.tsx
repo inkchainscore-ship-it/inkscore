@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Coins, Image } from './Icons';
+import { getProxiedImageUrl } from '@/lib/utils/imageProxy';
 
 type TokenType = 'meme' | 'stablecoin' | 'native' | 'defi' | 'governance' | 'utility' | null;
 
@@ -99,7 +100,7 @@ export const HoldingsSection: React.FC<HoldingsSectionProps> = ({
               {regularTokens.slice(0, 3).map((token, i) => (
                 <img
                   key={i}
-                  src={token.logo}
+                  src={getProxiedImageUrl(token.logo)}
                   alt={token.symbol}
                   className="w-7 h-7 rounded-full object-cover bg-slate-800"
                   style={{ zIndex: 3 - i }}
@@ -128,7 +129,7 @@ export const HoldingsSection: React.FC<HoldingsSectionProps> = ({
               >
                 <div className="flex items-center gap-3">
                   <img
-                    src={token.logo}
+                    src={getProxiedImageUrl(token.logo)}
                     alt={token.symbol}
                     className="w-10 h-10 rounded-lg object-cover"
                     onError={(e) => {
@@ -165,7 +166,7 @@ export const HoldingsSection: React.FC<HoldingsSectionProps> = ({
               {sortedMemeCoins.slice(0, 3).map((token, i) => (
                 <img
                   key={i}
-                  src={token.logo}
+                  src={getProxiedImageUrl(token.logo)}
                   alt={token.symbol}
                   className="w-7 h-7 rounded-full object-cover bg-slate-800"
                   style={{ zIndex: 3 - i }}
@@ -195,7 +196,7 @@ export const HoldingsSection: React.FC<HoldingsSectionProps> = ({
               >
                 <div className="flex items-center gap-3">
                   <img
-                    src={token.logo}
+                    src={getProxiedImageUrl(token.logo)}
                     alt={token.symbol}
                     className="w-10 h-10 rounded-lg object-cover"
                     onError={(e) => {
@@ -237,7 +238,7 @@ export const HoldingsSection: React.FC<HoldingsSectionProps> = ({
               {sortedNftCollections.slice(0, 3).map((collection, i) => (
                 <img
                   key={i}
-                  src={collection.logo}
+                  src={getProxiedImageUrl(collection.logo)}
                   alt={collection.name}
                   className="w-7 h-7 rounded-full object-cover  bg-slate-800"
                   style={{ zIndex: 3 - i }}
@@ -261,7 +262,7 @@ export const HoldingsSection: React.FC<HoldingsSectionProps> = ({
             >
               <div className="flex items-center gap-3">
                 <img
-                  src={collection.logo}
+                  src={getProxiedImageUrl(collection.logo)}
                   alt={collection.name}
                   className="w-10 h-10 rounded-lg object-cover"
                   onError={(e) => {

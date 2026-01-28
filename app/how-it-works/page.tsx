@@ -116,7 +116,7 @@ const PLATFORM_LOGOS: Record<string, string> = {
   relay: 'https://relay.link/favicon.ico',
   inkOfficial: 'https://inkonchain.com/favicon.ico',
   bungee: 'https://www.bungee.exchange/favicon.ico',
-  usdt0: 'https://pbs.twimg.com/profile_images/1879546764971188224/SQISVYwX_400x400.jpg',
+  usdt0: 'https://pbs.twimg.com/profile_images/2013321478834409473/eD-oLIDE_400x400.jpg',
   inkyswap: 'https://inkyswap.com/logo-mobile.svg',
   dyorswap: 'https://dyorswap.finance/favicon.ico',
   velodrome: 'https://velodrome.finance/images/VELO/favicon.ico',
@@ -382,7 +382,7 @@ const platformMetrics: PlatformRule[] = [
   },
   {
     name: 'Nado Finance',
-    logo: 'https://app.nado.xyz/icon.svg?5705fe91856b2ccd',
+    logo: 'https://pbs.twimg.com/profile_images/2010908038514032641/5E7RkPLF_400x400.jpg',
     description: 'Points for deposits and trading volume on Nado',
     formula: 'Deposits (max 1,250) + Volume (max 1,250) = Max 2,500pts',
     details: [

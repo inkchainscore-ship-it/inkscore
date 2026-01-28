@@ -18,11 +18,12 @@ import { WalletScoreResponse } from '../../lib/types/platforms';
 import { DashboardCardData } from '../../lib/types/dashboard';
 import { DynamicCardsCarouselRow3, DynamicCardsCarouselRow4 } from './DynamicDashboardCards';
 import { MintScoreNFT } from './MintScoreNFT';
+import { getProxiedImageUrl } from '@/lib/utils/imageProxy';
 
 // Bridge platform logos and URLs
 const BRIDGE_PLATFORMS: Record<string, { logo: string; url: string }> = {
   'Native Bridge (USDT0)': {
-    logo: 'https://pbs.twimg.com/profile_images/1879546764971188224/SQISVYwX_400x400.jpg',
+    logo: 'https://pbs.twimg.com/profile_images/2013321478834409473/eD-oLIDE_400x400.jpg',
     url: 'https://usdt0.to',
   },
   'Ink Official': {
@@ -1125,7 +1126,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress, isDemo }) =
                   title="Visit Tydro"
                 >
                   <img
-                    src="https://app.tydro.com/tydro-logo.svg"
+                    src={getProxiedImageUrl("https://app.tydro.com/tydro-logo.svg")}
                     alt="Tydro"
                     className="w-full h-full object-contain"
                     onError={(e) => {
@@ -1306,7 +1307,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress, isDemo }) =
                   title="Visit Nado Finance"
                 >
                   <img
-                    src="https://app.nado.xyz/icon.svg?5705fe91856b2ccd"
+                    src={getProxiedImageUrl("https://pbs.twimg.com/profile_images/2010908038514032641/5E7RkPLF_400x400.jpg")}
                     alt="Nado"
                     className="w-full h-full object-contain"
                     onError={(e) => {
@@ -1437,7 +1438,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress, isDemo }) =
                       title={`Visit ${name}`}
                     >
                       <img
-                        src={platform.logo}
+                        src={getProxiedImageUrl(platform.logo)}
                         alt={name}
                         className="w-6 h-6 rounded-full object-cover bg-slate-800"
                         onError={(e) => {
@@ -1512,7 +1513,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress, isDemo }) =
                                     title={`Visit ${platform.platformName}`}
                                   >
                                     <img
-                                      src={platform.logoUrl}
+                                      src={getProxiedImageUrl(platform.logoUrl)}
                                       alt={platform.platformName}
                                       className="w-3 h-3 rounded"
                                       onError={(e) => {
@@ -1669,7 +1670,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress, isDemo }) =
                       title={`Visit ${platform.name}`}
                     >
                       <img
-                        src={platform.logo}
+                        src={getProxiedImageUrl(platform.logo)}
                         alt={platform.name}
                         className="w-6 h-6 rounded-full object-cover bg-slate-800"
                         onError={(e) => {
@@ -1719,7 +1720,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress, isDemo }) =
                               title={`Visit ${platform.platformInfo.name}`}
                             >
                               <img
-                                src={platform.platformInfo.logo}
+                                src={getProxiedImageUrl(platform.platformInfo.logo)}
                                 alt={platform.platformInfo.name}
                                 className="w-3 h-3 rounded"
                                 onError={(e) => {
@@ -1852,7 +1853,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress, isDemo }) =
                       title={`Visit ${platform.name}`}
                     >
                       <img
-                        src={platform.logo}
+                        src={getProxiedImageUrl(platform.logo)}
                         alt={platform.name}
                         className="w-6 h-6 rounded-full object-cover bg-slate-800"
                         onError={(e) => {
@@ -1896,7 +1897,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress, isDemo }) =
                                 title={`Visit ${platformInfo.name}`}
                               >
                                 <img
-                                  src={platformInfo.logo}
+                                  src={getProxiedImageUrl(platformInfo.logo)}
                                   alt={platformInfo.name}
                                   className="w-3 h-3 rounded"
                                   onError={(e) => {
@@ -1946,7 +1947,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress, isDemo }) =
                             title={`Visit ${platformInfo.name}`}
                           >
                             <img
-                              src={platformInfo.logo}
+                              src={getProxiedImageUrl(platformInfo.logo)}
                               alt={platformInfo.name}
                               className="w-3 h-3 rounded"
                               onError={(e) => {

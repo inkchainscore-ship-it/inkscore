@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { DashboardCardData } from '@/lib/types/dashboard';
+import { getProxiedImageUrl, getFallbackAvatarUrl } from '@/lib/utils/imageProxy';
 
 const COLOR_CLASSES: Record<string, { border: string; bg: string; text: string; badge: string }> = {
   purple: {
@@ -221,12 +222,12 @@ export function DashboardCardLarge({ card, delay }: { card: DashboardCardData; d
               {card.platforms.slice(0, 3).map((p, i) => (
                 <img
                   key={p.platform_id}
-                  src={p.platform.logo_url || `https://ui-avatars.com/api/?name=${p.platform.name.charAt(0)}&background=334155&color=94a3b8&size=28`}
+                  src={getProxiedImageUrl(p.platform.logo_url) || getFallbackAvatarUrl(p.platform.name, 28)}
                   alt={p.platform.name}
                   className={`w-7 h-7 rounded-full object-cover border-2 ${colors.border.replace('/20', '')} bg-slate-800`}
                   style={{ zIndex: 3 - i }}
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${p.platform.name.charAt(0)}&background=334155&color=94a3b8&size=28`;
+                    (e.target as HTMLImageElement).src = getFallbackAvatarUrl(p.platform.name, 28);
                   }}
                 />
               ))}
@@ -275,7 +276,7 @@ export function DashboardCardLarge({ card, delay }: { card: DashboardCardData; d
                 <span className="text-slate-400 flex items-center gap-1.5">
                   {platform.platform.logo_url && (
                     <img
-                      src={platform.platform.logo_url}
+                      src={getProxiedImageUrl(platform.platform.logo_url)}
                       alt={platform.platform.name}
                       className="w-3.5 h-3.5 rounded"
                       onError={(e) => {
@@ -329,7 +330,7 @@ export function SmallDashboardCard({ card, delay }: { card: DashboardCardData; d
         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
           {platform?.logo_url && (
             <img
-              src={platform.logo_url}
+              src={getProxiedImageUrl(platform.logo_url)}
               alt={platform.name}
               className="w-6 h-6 rounded"
               onError={(e) => {
